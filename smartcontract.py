@@ -87,7 +87,7 @@ def approval_program():
 		
 		
     handle_noop = Seq(
-        Assert(Global.group_size() == Int(3)), 
+        Assert(Global.group_size() == Int(1)), 
         Cond(
         	[Txn.application_args[0] == Bytes("FullPayment"), full_payment], 
         	[Txn.application_args[0] == Bytes("DepositNotRefunded"), deposit_not_refunded]

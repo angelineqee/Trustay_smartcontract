@@ -26,7 +26,7 @@ bnz main_l7
 err
 main_l7:
 global GroupSize
-int 3
+int 1
 ==
 assert
 txna ApplicationArgs 0
@@ -43,7 +43,7 @@ txn Fee
 int 10000
 <
 txn FirstValid
-int 1696234405
+int 1696258957
 >
 &&
 txn Sender
@@ -69,7 +69,7 @@ txn Fee
 int 10000
 <
 txn FirstValid
-int 1696234405
+int 1696258957
 >
 &&
 assert
