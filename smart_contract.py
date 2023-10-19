@@ -62,7 +62,6 @@ class TxnTags:
     ASSET_HANDIN: TealType.bytes = Bytes("ASSET_HANDIN")
     COLLECT_RENTAL: TealType.bytes = Bytes("COLLECT_RENTAL")
     CHECKOUT: TealType.bytes = Bytes("CHECKOUT")
-    DEPOSIT_NOT_REFUNDED: TealType.bytes = Bytes("DEPOSIT_NOT_REFUNDED")
 
 @Subroutine(TealType.uint64)
 def is_acc_opted_in(account: TealType.bytes):
@@ -255,39 +254,25 @@ def collect_rental():
     
 
 @Subroutine(TealType.uint64)
-def check_out():
+def check_out(refund_deposit: TealType.uint64):
     """ contract revoke asset """
     asset_id = getAssetId()
-    return Seq(
-        If( And( Global.latest_timestamp() >= check_out_time, Txn.sender() == host_addr ) ).Then(
-	        inner_asset_transfer(
-                asset_id,
-                1,
-                guest_addr,
-                Global.current_application_address())
-        ),
-        Int(1)
-    )
-    
-
-# Check if the transaction is a call from the host to take the deposit
-is_host_request = And(
-	Global.latest_timestamp() >= check_out_time,
-    Txn.sender() == host_addr
-)
-
-@Subroutine(TealType.uint64)
-def deposit_not_refunded():
     deposit = getDeposit()
     return Seq(
-        If (is_host_request).Then(
+        Assert(Txn.sender()==host_addr),
+        Assert(Global.latest_timestamp() >= check_out_time),
+	    inner_asset_transfer(
+            asset_id,
+            1,
+            guest_addr,
+            Global.current_application_address()),
+        If(refund_deposit == Int(0)).Then(
             inner_payment_txn(deposit, service_addr)
+        ).Else(
+            inner_payment_txn(deposit, guest_addr)
         ),
         Int(1)
     )
-   
-    
-
 
 # --- Approval Program ---
 
@@ -328,7 +313,6 @@ def approval_program():
                 [ BytesEq(Txn.note(), TxnTags.ASSET_HANDIN), Return(refund_operation)],
                 [ BytesEq(Txn.note(), TxnTags.COLLECT_RENTAL), collect_rental],
                 [ BytesEq(Txn.note(), TxnTags.CHECKOUT), check_out],
-                [ BytesEq(Txn.note(), TxnTags.DEPOSIT_NOT_REFUNDED), deposit_not_refunded],
                 [ Txn.on_completion() == OnComplete.DeleteApplication, Return(handle_deleteapp) ],
                 [ Txn.on_completion() == OnComplete.ClearState, Return(handle_clear_state) ],
                 [ Txn.on_completion() == OnComplete.OptIn, Return(handle_optin) ],
