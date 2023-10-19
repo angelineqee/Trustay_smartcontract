@@ -60,7 +60,9 @@ class TxnTags:
     SETUP: TealType.bytes = Bytes("SETUP")
     ALGO_PAYMENT: TealType.bytes = Bytes("ALGO_PAYMENT")
     ASSET_HANDIN: TealType.bytes = Bytes("ASSET_HANDIN")
-
+    COLLECT_RENTAL: TealType.bytes = Bytes("COLLECT_RENTAL")
+    CHECKOUT: TealType.bytes = Bytes("CHECKOUT")
+    DEPOSIT_NOT_REFUNDED: TealType.bytes = Bytes("DEPOSIT_NOT_REFUNDED")
 
 @Subroutine(TealType.uint64)
 def is_acc_opted_in(account: TealType.bytes):
@@ -240,26 +242,33 @@ def collect_rental():
     rental = getRental()
     cancelled = getCancelledStatus()
     paid = getPaymentStatus()
-    If(And(
-        Not(is_eligible_for_refund()), 
-        paid == Int(1), 
-        cancelled == Int(0)),
-        Txn.sender() == host_addr,
+    return Seq(
+        If(And(
+            Not(is_eligible_for_refund()), 
+            paid == Int(1), 
+            cancelled == Int(0)),
+            Txn.sender() == host_addr,
         ).Then(
-        inner_payment_txn(rental, Txn.sender())
-    ).Else(Int(0))
+            inner_payment_txn(rental, Txn.sender())
+        ).Else(Int(0))
+    )
+    
 
 @Subroutine(TealType.uint64)
 def check_out():
     """ contract revoke asset """
     asset_id = getAssetId()
-    If( And( Global.latest_timestamp() >= check_out_time, Txn.sender() == host_addr ) ).Then(
-	inner_asset_transfer(
-            asset_id,
-            1,
-            guest_addr,
-            Global.current_application_address())
+    return Seq(
+        If( And( Global.latest_timestamp() >= check_out_time, Txn.sender() == host_addr ) ).Then(
+	        inner_asset_transfer(
+                asset_id,
+                1,
+                guest_addr,
+                Global.current_application_address())
+        ),
+        Int(1)
     )
+    
 
 # Check if the transaction is a call from the host to take the deposit
 is_host_request = And(
@@ -270,9 +279,14 @@ is_host_request = And(
 @Subroutine(TealType.uint64)
 def deposit_not_refunded():
     deposit = getDeposit()
-    If (is_host_request).Then(
-        inner_payment_txn(deposit, service_addr)
+    return Seq(
+        If (is_host_request).Then(
+            inner_payment_txn(deposit, service_addr)
+        ),
+        Int(1)
     )
+   
+    
 
 
 # --- Approval Program ---
@@ -308,20 +322,21 @@ def approval_program():
 
 # Main Conditional
     program = Cond(
-        # Check the group_size() first since if wrong, we dont even have to start
         [ Global.group_size () == Int(1),
             Cond(
                 [ Txn.application_id() == Int(0), Return(handle_app_creation) ],
                 [ BytesEq(Txn.note(), TxnTags.ASSET_HANDIN), Return(refund_operation)],
+                [ BytesEq(Txn.note(), TxnTags.COLLECT_RENTAL), collect_rental],
+                [ BytesEq(Txn.note(), TxnTags.CHECKOUT), check_out],
+                [ BytesEq(Txn.note(), TxnTags.DEPOSIT_NOT_REFUNDED), deposit_not_refunded],
                 [ Txn.on_completion() == OnComplete.DeleteApplication, Return(handle_deleteapp) ],
                 [ Txn.on_completion() == OnComplete.ClearState, Return(handle_clear_state) ],
                 [ Txn.on_completion() == OnComplete.OptIn, Return(handle_optin) ],
                 [ Txn.on_completion() == OnComplete.CloseOut, Return(handle_closeout) ])],
         [ Global.group_size() == Int(2),
             Cond(
-                # like above the note gets checked to determine the intend of the call
                 [ BytesEq(Gtxn[1].note(), TxnTags.SETUP), Return(setup_app_operation) ],
-                [ BytesEq(Gtxn[1].note(), TxnTags.ALGO_HANDIN), Return(booking_operation) ])],
+                [ BytesEq(Gtxn[1].note(), TxnTags.ALGO_PAYMENT), Return(booking_operation) ])],
         [ Global.group_size() >= Int(2), Reject() ]
     )
     return compileTeal(program, Mode.Application, version=5)
