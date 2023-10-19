@@ -7,8 +7,6 @@ host_addr = Addr ("GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU")
 guest_addr = Addr ("6JTXVG2MDQL7W5I77RCA62C5OTBZLYTPVHXC43RFNGEKTCAHMQAMHNJ2AE")
 service_addr = Addr ("F66DD432HVSH5MOU4RCD3WOLNK4VQO4GT4RBZ3KGZE7GBNQZE65HVUSLGA")
 
-fee_limit = Int (10000)
-
 def calculate_timestamp(year, month, day, hour=0, minute=0, second=0):
     # Create a datetime object for the specified date and time
     dt = datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
@@ -20,6 +18,7 @@ def calculate_timestamp(year, month, day, hour=0, minute=0, second=0):
 #get check-in date and time from application, to set the first_valid() of the smart contract
 #check_in_time = calculate_timestamp()
 #check_out_time = calculate_timestamp()
+
 
 def approval_program():
     handle_creation = Seq([
@@ -35,8 +34,8 @@ def approval_program():
     handle_updateapp = Return(Int(1))
     handle_deleteapp = Return(Int(1))
 
-    App.globalPut(Bytes("deposit"),Int(300))
-    App.globalPut(Bytes("rental"),Int(1000))
+    App.globalPut(Bytes("deposit"),Int(3))
+    App.globalPut(Bytes("rental"),Int(10))
     scratchDeposit = ScratchVar(TealType.uint64)
     scratchRental = ScratchVar(TealType.uint64)
     scratchDeposit.store(App.globalGet(Bytes("deposit")))
@@ -48,14 +47,13 @@ def approval_program():
     check_out_time = Int(int(datetime.timestamp(datetime.now())))
 
     fullpay_cond = And(
-	    Txn.fee() < fee_limit,
-		Txn.first_valid() > check_in_time
+		#Txn.first_valid() > check_in_time,
+        Txn.sender() == guest_addr
 	)
 
 	# Check if the transaction is a call from the host to take the deposit
     is_host_request = And(
-		Txn.fee() < fee_limit,
-		Txn.first_valid() > check_out_time,
+		#Txn.first_valid() > check_out_time,
         Txn.sender() == host_addr
     )
 		
@@ -64,7 +62,7 @@ def approval_program():
 		InnerTxnBuilder.Begin(),
 		InnerTxnBuilder.SetFields({
 			TxnField.type_enum: TxnType.Payment,
-			TxnField.sender:guest_addr,
+			TxnField.sender:guest_addr, 
 			TxnField.receiver:host_addr,
 			TxnField.amount:App.globalGet(Bytes("total"))
 		}),
