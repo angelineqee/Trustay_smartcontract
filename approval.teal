@@ -190,7 +190,6 @@ itxn_field ConfigAssetURL
 itxn_submit
 byte "assetID"
 itxn CreatedAssetID
-itob
 app_global_put
 byte "deposit"
 gtxna 1 ApplicationArgs 5
@@ -264,7 +263,7 @@ addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
 ==
 assert
 global LatestTimestamp
-int 1697832082
+int 1697833291
 >=
 assert
 itxn_begin
@@ -314,7 +313,7 @@ itxn_submit
 b main_l29
 main_l31:
 global LatestTimestamp
-int 1697832082
+int 1697833291
 <=
 !
 byte "paid"
@@ -381,7 +380,7 @@ app_global_get
 assert
 int 1
 global LatestTimestamp
-int 1697832082
+int 1697833291
 <=
 bnz main_l37
 int 0

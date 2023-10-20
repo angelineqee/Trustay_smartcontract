@@ -19,8 +19,8 @@ class GlobalState:
     """ wrapper class for access to predetermined Global State properties"""
     class Schema:
         """ Global State Schema """
-        NUM_UINTS: TealType.uint64 = Int(5)
-        NUM_BYTESLICES: TealType.uint64 = Int(1)
+        NUM_UINTS: TealType.uint64 = Int(6)
+        NUM_BYTESLICES: TealType.uint64 = Int(0)
         
 
     class Variables:
@@ -95,10 +95,10 @@ def inner_asset_creation() -> Expr:
             TxnField.config_asset_url: call_parameters[3],
         }),
         InnerTxnBuilder.Submit(),
-        App.globalPut(GlobalState.Variables.ASSET_ID, Itob(InnerTxn.created_asset_id()))
+        App.globalPut(GlobalState.Variables.ASSET_ID, InnerTxn.created_asset_id())
     ])
 
-def inner_asset_transfer(asset_id: TealType.bytes, asset_amount: TealType.uint64, asset_sender: TealType.bytes, asset_receiver: TealType.bytes) -> Expr:
+def inner_asset_transfer(asset_id: TealType.uint64, asset_amount: TealType.uint64, asset_sender: TealType.bytes, asset_receiver: TealType.bytes) -> Expr:
     return Seq([
         InnerTxnBuilder.Begin(),
         InnerTxnBuilder.SetFields({
@@ -184,7 +184,7 @@ def setup_app( ):
 def is_valid_booking_call(
     app_call_txn_index: TealType.uint64,
     payment_txn_index: TealType.uint64,
-    asset_id: TealType.bytes
+    asset_id: TealType.uint64
     ):
     # the first transaction sends the microAlgos to pay for the ASA units
     payment_txn = Gtxn[payment_txn_index]
@@ -204,7 +204,7 @@ def is_valid_booking_call(
         Int(1))
 
 
-def booking (payment_txn_index: TealType.uint64, asset_id: TealType.bytes):
+def booking (payment_txn_index: TealType.uint64, asset_id: TealType.uint64):
     """ perform the operation to book """
     payment_txn = Gtxn[payment_txn_index]
     amount_sent = payment_txn.amount()
