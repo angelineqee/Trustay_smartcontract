@@ -1,0 +1,460 @@
+#pragma version 5
+global GroupSize
+int 1
+==
+bnz main_l14
+global GroupSize
+int 2
+==
+bnz main_l5
+global GroupSize
+int 2
+>=
+bnz main_l4
+err
+main_l4:
+int 0
+return
+main_l5:
+gtxn 1 Note
+byte "SETUP"
+b==
+bnz main_l13
+gtxn 1 Note
+byte "ALGO_PAYMENT"
+b==
+bnz main_l8
+err
+main_l8:
+int 1
+gtxns Sender
+addr 6JTXVG2MDQL7W5I77RCA62C5OTBZLYTPVHXC43RFNGEKTCAHMQAMHNJ2AE
+==
+assert
+int 1
+gtxns Sender
+global CurrentApplicationID
+app_opted_in
+assert
+int 1
+gtxns TypeEnum
+int appl
+==
+assert
+int 1
+gtxns OnCompletion
+int NoOp
+==
+assert
+int 0
+gtxns TypeEnum
+int pay
+==
+assert
+int 1
+gtxns Sender
+int 0
+gtxns Sender
+==
+assert
+int 1
+gtxnsa Assets 0
+byte "assetID"
+app_global_get
+==
+assert
+int 0
+gtxns Amount
+byte "total"
+app_global_get
+>=
+assert
+int 1
+gtxn 0 Amount
+byte "total"
+app_global_get
+>=
+bnz main_l12
+main_l9:
+gtxn 0 Amount
+byte "total"
+app_global_get
+-
+int 0
+>
+bnz main_l11
+main_l10:
+gtxn 0 Sender
+byte "paid_amount"
+byte "total"
+app_global_get
+app_local_put
+gtxn 0 Sender
+byte "last_payment_timestamp"
+global LatestTimestamp
+app_local_put
+byte "paid"
+int 1
+app_global_put
+int 1
+&&
+return
+main_l11:
+itxn_begin
+int pay
+itxn_field TypeEnum
+global CurrentApplicationAddress
+itxn_field Sender
+gtxn 0 Amount
+byte "total"
+app_global_get
+-
+itxn_field Amount
+gtxn 0 Sender
+itxn_field Receiver
+itxn_submit
+b main_l10
+main_l12:
+itxn_begin
+int axfer
+itxn_field TypeEnum
+byte "assetID"
+app_global_get
+itxn_field XferAsset
+global CurrentApplicationAddress
+itxn_field AssetSender
+int 1
+itxn_field AssetAmount
+gtxn 0 Sender
+itxn_field AssetReceiver
+itxn_submit
+b main_l9
+main_l13:
+int 0
+gtxns Sender
+addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
+==
+assert
+int 0
+gtxns TypeEnum
+int pay
+==
+assert
+int 1
+gtxns Sender
+addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
+==
+assert
+int 1
+gtxns TypeEnum
+int appl
+==
+assert
+int 1
+gtxns OnCompletion
+int NoOp
+==
+assert
+int 1
+gtxns ApplicationID
+int 0
+!=
+assert
+int 1
+gtxns NumAppArgs
+int 6
+==
+assert
+int 1
+itxn_begin
+int acfg
+itxn_field TypeEnum
+global CurrentApplicationAddress
+itxn_field ConfigAssetClawback
+global CurrentApplicationAddress
+itxn_field ConfigAssetReserve
+int 1
+itxn_field ConfigAssetDefaultFrozen
+gtxna 1 ApplicationArgs 0
+itxn_field ConfigAssetMetadataHash
+gtxna 1 ApplicationArgs 1
+itxn_field ConfigAssetName
+gtxna 1 ApplicationArgs 2
+itxn_field ConfigAssetUnitName
+int 1
+itxn_field ConfigAssetTotal
+int 0
+itxn_field ConfigAssetDecimals
+gtxna 1 ApplicationArgs 3
+itxn_field ConfigAssetURL
+itxn_submit
+byte "assetID"
+itxn CreatedAssetID
+itob
+app_global_put
+byte "deposit"
+gtxna 1 ApplicationArgs 5
+btoi
+app_global_put
+byte "rental"
+gtxna 1 ApplicationArgs 4
+btoi
+app_global_put
+byte "total"
+byte "deposit"
+app_global_get
+btoi
+byte "rental"
+app_global_get
+btoi
++
+app_global_put
+int 1
+&&
+return
+main_l14:
+txn ApplicationID
+int 0
+==
+bnz main_l38
+txn Note
+byte "ASSET_HANDIN"
+b==
+bnz main_l34
+txn Note
+byte "COLLECT_RENTAL"
+b==
+bnz main_l31
+txn Note
+byte "CHECKOUT"
+b==
+bnz main_l27
+txn OnCompletion
+int DeleteApplication
+==
+bnz main_l26
+txn OnCompletion
+int ClearState
+==
+bnz main_l25
+txn OnCompletion
+int OptIn
+==
+bnz main_l24
+txn OnCompletion
+int CloseOut
+==
+bnz main_l23
+err
+main_l23:
+int 0
+return
+main_l24:
+int 1
+return
+main_l25:
+int 0
+return
+main_l26:
+int 0
+return
+main_l27:
+txn Sender
+addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
+==
+assert
+global LatestTimestamp
+int 1697832082
+>=
+assert
+itxn_begin
+int axfer
+itxn_field TypeEnum
+byte "assetID"
+app_global_get
+itxn_field XferAsset
+addr 6JTXVG2MDQL7W5I77RCA62C5OTBZLYTPVHXC43RFNGEKTCAHMQAMHNJ2AE
+itxn_field AssetSender
+int 1
+itxn_field AssetAmount
+global CurrentApplicationAddress
+itxn_field AssetReceiver
+itxn_submit
+txna ApplicationArgs 0
+btoi
+int 0
+==
+bnz main_l30
+itxn_begin
+int pay
+itxn_field TypeEnum
+global CurrentApplicationAddress
+itxn_field Sender
+byte "deposit"
+app_global_get
+itxn_field Amount
+addr 6JTXVG2MDQL7W5I77RCA62C5OTBZLYTPVHXC43RFNGEKTCAHMQAMHNJ2AE
+itxn_field Receiver
+itxn_submit
+main_l29:
+int 1
+return
+main_l30:
+itxn_begin
+int pay
+itxn_field TypeEnum
+global CurrentApplicationAddress
+itxn_field Sender
+byte "deposit"
+app_global_get
+itxn_field Amount
+addr F66DD432HVSH5MOU4RCD3WOLNK4VQO4GT4RBZ3KGZE7GBNQZE65HVUSLGA
+itxn_field Receiver
+itxn_submit
+b main_l29
+main_l31:
+global LatestTimestamp
+int 1697832082
+<=
+!
+byte "paid"
+app_global_get
+int 1
+==
+&&
+byte "cancelled"
+app_global_get
+int 0
+==
+&&
+txn Sender
+addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
+==
+&&
+bnz main_l33
+main_l32:
+int 1
+return
+main_l33:
+itxn_begin
+int pay
+itxn_field TypeEnum
+global CurrentApplicationAddress
+itxn_field Sender
+byte "rental"
+app_global_get
+itxn_field Amount
+txn Sender
+itxn_field Receiver
+itxn_submit
+b main_l32
+main_l34:
+txn Sender
+addr 6JTXVG2MDQL7W5I77RCA62C5OTBZLYTPVHXC43RFNGEKTCAHMQAMHNJ2AE
+==
+assert
+txn Sender
+global CurrentApplicationID
+app_opted_in
+assert
+txn OnCompletion
+int NoOp
+==
+assert
+byte "total"
+app_global_get
+byte "total"
+app_global_get
+==
+assert
+txn Sender
+byte "paid_amount"
+app_local_get
+byte "total"
+app_global_get
+>=
+assert
+txna Assets 0
+byte "assetID"
+app_global_get
+==
+assert
+int 1
+global LatestTimestamp
+int 1697832082
+<=
+bnz main_l37
+int 0
+main_l36:
+&&
+return
+main_l37:
+itxn_begin
+int axfer
+itxn_field TypeEnum
+byte "assetID"
+app_global_get
+itxn_field XferAsset
+txn Sender
+itxn_field AssetSender
+int 1
+itxn_field AssetAmount
+global CurrentApplicationAddress
+itxn_field AssetReceiver
+itxn_submit
+itxn_begin
+int pay
+itxn_field TypeEnum
+global CurrentApplicationAddress
+itxn_field Sender
+byte "total"
+app_global_get
+itxn_field Amount
+txn Sender
+itxn_field Receiver
+itxn_submit
+txn Sender
+byte "paid_amount"
+txn Sender
+byte "paid_amount"
+app_local_get
+byte "total"
+app_global_get
+-
+app_local_put
+byte "cancelled"
+int 1
+app_global_put
+int 1
+b main_l36
+main_l38:
+txn Sender
+addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
+==
+assert
+txn TypeEnum
+int appl
+==
+assert
+txn OnCompletion
+int NoOp
+==
+assert
+txn GlobalNumByteSlice
+int 0
+==
+assert
+txn GlobalNumUint
+int 3
+==
+assert
+txn LocalNumByteSlice
+int 0
+==
+assert
+txn LocalNumUint
+int 0
+==
+assert
+int 1
+return

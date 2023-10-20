@@ -1,7 +1,6 @@
 from pyteal import *
 import datetime
 from datetime import datetime, timezone
-from InnerTxnUtils import (inner_payment_txn, inner_asset_creation, inner_asset_transfer)
 
 class LocalState:
     """ wrapper class for access to predetermined Local State properties"""
@@ -26,12 +25,39 @@ class GlobalState:
 
     class Variables:
         """ Global State Variables """
-        RENTAL: TealType.uint64 = Int(0)
-        DEPOSIT: TealType.uint64 = Int(0)
-        TOTAL: TealType.uint64 = Int(0)
-        CANCELLED: TealType.uint64 = Int(0)
-        PAID: TealType.uint64 = Int(0)
-        ASSET_ID: TealType.bytes = Bytes("asset_ID")
+        RENTAL: TealType.bytes = Bytes("rental")
+        DEPOSIT: TealType.bytes = Bytes("deposit")
+        TOTAL: TealType.bytes = Bytes("total")
+        CANCELLED: TealType.bytes = Bytes("cancelled")
+        PAID: TealType.bytes = Bytes("paid")
+        ASSET_ID: TealType.bytes = Bytes("assetID")
+
+# --- Global Getters ---
+def getAssetId():
+    return App.globalGet(GlobalState.Variables.ASSET_ID)
+
+def getRental():
+    return App.globalGet(GlobalState.Variables.RENTAL)
+
+def getDeposit():
+    return App.globalGet(GlobalState.Variables.DEPOSIT)
+
+def getTotal():
+    return App.globalGet(GlobalState.Variables.TOTAL)
+
+def getCancelledStatus():
+    return App.globalGet(GlobalState.Variables.CANCELLED)
+
+def getPaymentStatus():
+    return App.globalGet(GlobalState.Variables.PAID)
+
+# --- Local Getters ---
+
+def getPaidAmount(account: TealType.bytes):
+    return App.localGet(account, LocalState.Variables.PAID_AMOUNT)
+
+def getLastPaidTimestamp(account: TealType.bytes):
+    return App.localGet(account, LocalState.Variables.LAST_PAYMENT_TIMESTAMP)
 
 
 #default values
@@ -39,6 +65,7 @@ host_addr = Addr ("GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU")
 guest_addr = Addr ("6JTXVG2MDQL7W5I77RCA62C5OTBZLYTPVHXC43RFNGEKTCAHMQAMHNJ2AE")
 service_addr = Addr ("F66DD432HVSH5MOU4RCD3WOLNK4VQO4GT4RBZ3KGZE7GBNQZE65HVUSLGA")
 
+#Tools
 def calculate_timestamp(year, month, day, hour=0, minute=0, second=0):
     # Create a datetime object for the specified date and time
     dt = datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
@@ -46,6 +73,57 @@ def calculate_timestamp(year, month, day, hour=0, minute=0, second=0):
     # Calculate the timestamp (seconds since the epoch)
     timestamp = dt.timestamp()
     return timestamp
+
+def inner_asset_creation() -> Expr:
+    """
+    - returns the id of the generated asset or fails
+    """
+    call_parameters = Gtxn[1].application_args
+    return Seq([
+        InnerTxnBuilder.Begin(),
+        InnerTxnBuilder.SetFields({
+            #TxnField.note: Bytes("TUT_ITXN_AC"),
+            TxnField.type_enum: TxnType.AssetConfig,
+            TxnField.config_asset_clawback: Global.current_application_address(),
+            TxnField.config_asset_reserve: Global.current_application_address(),
+            TxnField.config_asset_default_frozen: Int(1),
+            TxnField.config_asset_metadata_hash: call_parameters[0],
+            TxnField.config_asset_name: call_parameters[1],
+            TxnField.config_asset_unit_name: call_parameters[2],
+            TxnField.config_asset_total: Int(1),
+            TxnField.config_asset_decimals: Int(0),
+            TxnField.config_asset_url: call_parameters[3],
+        }),
+        InnerTxnBuilder.Submit(),
+        App.globalPut(GlobalState.Variables.ASSET_ID, Itob(InnerTxn.created_asset_id()))
+    ])
+
+def inner_asset_transfer(asset_id: TealType.bytes, asset_amount: TealType.uint64, asset_sender: TealType.bytes, asset_receiver: TealType.bytes) -> Expr:
+    return Seq([
+        InnerTxnBuilder.Begin(),
+        InnerTxnBuilder.SetFields({
+            #TxnField.note: Bytes("TUT_ITXN_AT"),
+            TxnField.type_enum: TxnType.AssetTransfer,
+            TxnField.xfer_asset: asset_id,
+            TxnField.asset_sender: asset_sender,
+            TxnField.asset_amount: asset_amount,
+            TxnField.asset_receiver: asset_receiver
+            }),
+        InnerTxnBuilder.Submit()
+    ])
+
+def inner_payment_txn(amount: TealType.uint64, receiver: TealType.bytes) -> Expr:
+    return Seq([
+        InnerTxnBuilder.Begin(),
+        InnerTxnBuilder.SetFields({
+            #TxnField.note: Bytes("TUT_ITXN_PAY"),
+            TxnField.type_enum: TxnType.Payment,
+            TxnField.sender: Global.current_application_address(),
+            TxnField.amount: amount,
+            TxnField.receiver: receiver
+            }),
+        InnerTxnBuilder.Submit()
+    ])
 
 #get check-in date and time from application, to set the first_valid() of the smart contract
 #check_in_time = calculate_timestamp()
@@ -63,23 +141,20 @@ class TxnTags:
     COLLECT_RENTAL: TealType.bytes = Bytes("COLLECT_RENTAL")
     CHECKOUT: TealType.bytes = Bytes("CHECKOUT")
 
-@Subroutine(TealType.uint64)
 def is_acc_opted_in(account: TealType.bytes):
     return App.optedIn(account, Global.current_application_id())
 
-@Subroutine(TealType.uint64)
 def is_valid_creation_call():
     return Seq(
 	Assert(Txn.sender() == host_addr),
         Assert(Txn.type_enum() == TxnType.ApplicationCall),
         Assert(Txn.on_completion() == OnComplete.NoOp),
-        Assert(Txn.global_num_byte_slices() == 0),
-        Assert(Txn.global_num_uints() == 3),
-        Assert(Txn.local_num_byte_slices() == 0),
-        Assert(Txn.local_num_uints() == 0),
+        Assert(Txn.global_num_byte_slices() == Int(0)),
+        Assert(Txn.global_num_uints() == Int(3)),
+        Assert(Txn.local_num_byte_slices() == Int(0)),
+        Assert(Txn.local_num_uints() == Int(0)),
         Int(1))
 
-@Subroutine(TealType.uint64)
 def is_valid_setup_call(fund_txn_index: TealType.uint64, app_call_txn_index: TealType.uint64):
     return Seq(
         # first transaction is seeding the application account
@@ -93,28 +168,23 @@ def is_valid_setup_call(fund_txn_index: TealType.uint64, app_call_txn_index: Tea
         Assert( Gtxn[app_call_txn_index].application_args.length() == Int(6) ),
         Int(1))
 
-@Subroutine(TealType.uint64)
 def setup_app( ):
     """ perform application setup to initiate global state and create the managed ASA"""
-    asset_id = inner_asset_creation(Int(1))
-    rental = Btoi(Gtxn[1].application_args[1])
-    deposit = Btoi(Gtxn[1].application_args[2])
+    rental = Gtxn[1].application_args[4]
+    deposit = Gtxn[1].application_args[5]
     return Seq(
+        inner_asset_creation(),
         # initiate Global State
-        App.globalPut(Bytes("deposit"),Int(0)),
-	    App.globalPut(GlobalState.Variables.ASSET_ID, asset_id),
-        App.globalPut(GlobalState.Variables.DEPOSIT, deposit),
-        App.globalPut(GlobalState.Variables.RENTAL, rental),
-        App.globalPut(GlobalState.Variables.TOTAL, App.globalGet(Bytes("deposit"))+App.globalGet(Bytes("rental"))),
+        App.globalPut(GlobalState.Variables.DEPOSIT, Btoi(deposit)),
+        App.globalPut(GlobalState.Variables.RENTAL, Btoi(rental)),
+        App.globalPut(GlobalState.Variables.TOTAL, Btoi(getDeposit())+ Btoi(getRental())),
         Int(1))
 
 
-@Subroutine(TealType.uint64)
 def is_valid_booking_call(
     app_call_txn_index: TealType.uint64,
     payment_txn_index: TealType.uint64,
-    asset_id: TealType.uint64,
-    total: TealType.uint64
+    asset_id: TealType.bytes
     ):
     # the first transaction sends the microAlgos to pay for the ASA units
     payment_txn = Gtxn[payment_txn_index]
@@ -134,8 +204,7 @@ def is_valid_booking_call(
         Int(1))
 
 
-@Subroutine(TealType.uint64)
-def booking (payment_txn_index: TealType.uint64, asset_id: TealType.uint64):
+def booking (payment_txn_index: TealType.uint64, asset_id: TealType.bytes):
     """ perform the operation to book """
     payment_txn = Gtxn[payment_txn_index]
     amount_sent = payment_txn.amount()
@@ -146,7 +215,7 @@ def booking (payment_txn_index: TealType.uint64, asset_id: TealType.uint64):
         If(amount_sent >= getTotal()).Then(
             inner_asset_transfer(
                 asset_id,
-                1,
+                Int(1),
                 Global.current_application_address(),
                 payment_txn.sender())
             ),
@@ -161,15 +230,13 @@ def booking (payment_txn_index: TealType.uint64, asset_id: TealType.uint64):
             LocalState.Variables.LAST_PAYMENT_TIMESTAMP,
             Global.latest_timestamp()),
 	# update global state
-	App.globalPut(GlobalState.Variables.PAID, Int(1)),
+	    App.globalPut(GlobalState.Variables.PAID, Int(1)),
         Int(1))
 
-@Subroutine(TealType.uint64)
 def is_eligible_for_refund():
     """ check if eligible for refund """
     return ( Global.latest_timestamp() <= check_in_time )
 
-@Subroutine(TealType.uint64)
 def cancellation_refund_request():
     refund_amount = getTotal()
     current_paid_amount = getPaidAmount(Txn.sender())
@@ -181,7 +248,7 @@ def cancellation_refund_request():
             Seq(
                 inner_asset_transfer(
                 getAssetId(),
-                1,
+                Int(1),
                 Txn.sender(),
                 Global.current_application_address()),
 
@@ -194,7 +261,6 @@ def cancellation_refund_request():
         # Else the call gets rejected
         ).Else(Int(0)))
 
-@Subroutine(TealType.uint64)
 def is_valid_refund_call():
     asset_id = getAssetId()
     current_paid_amount = getPaidAmount(Txn.sender())
@@ -209,33 +275,6 @@ def is_valid_refund_call():
         Assert( Txn.assets[0] == asset_id ),
         Int(1))
 
-@Subroutine(TealType.uint64)
-def close_out():
-    """ closeout by guest """
-    asset_id = getAssetId()
-    current_paid_amount = App.localGet(Txn.sender(), LocalState.Variables.PAID_AMOUNT)
-    sender_asset_balance = AssetHolding.balance(Txn.sender(), Int(0))
-
-    return Seq(
-        # if refund period active send refund
-        If(is_eligible_for_refund()).Then(
-            inner_payment_txn(current_paid_amount, Txn.sender() ),
-        ),
-        # check if the sender of the closeout still has units of the ASA
-        If(And(sender_asset_balance.hasValue(), sender_asset_balance.value() > Int(0))).
-        Then(
-            # if so revoke them from the sender closing out of the contract
-            inner_asset_transfer(
-                asset_id,
-                sender_asset_balance.value(),
-                Txn.sender(),
-                Global.current_application_address())),
-        # Clear the Local State of the sender closing out
-        App.localDel(Txn.sender(), LocalState.Variables.PAID_AMOUNT),
-        App.localDel(Txn.sender(), LocalState.Variables.LAST_PAID_TIMESTAMP),
-        Int(1))
-
-@Subroutine(TealType.uint64)
 def collect_rental():
     """ collect rental """
     rental = getRental()
@@ -245,15 +284,15 @@ def collect_rental():
         If(And(
             Not(is_eligible_for_refund()), 
             paid == Int(1), 
-            cancelled == Int(0)),
-            Txn.sender() == host_addr,
+            cancelled == Int(0),
+            Txn.sender() == host_addr,)
         ).Then(
-            inner_payment_txn(rental, Txn.sender())
-        ).Else(Int(0))
+            inner_payment_txn(rental, Txn.sender()),
+        ),
+        Int(1)
     )
     
 
-@Subroutine(TealType.uint64)
 def check_out(refund_deposit: TealType.uint64):
     """ contract revoke asset """
     asset_id = getAssetId()
@@ -263,7 +302,7 @@ def check_out(refund_deposit: TealType.uint64):
         Assert(Global.latest_timestamp() >= check_out_time),
 	    inner_asset_transfer(
             asset_id,
-            1,
+            Int(1),
             guest_addr,
             Global.current_application_address()),
         If(refund_deposit == Int(0)).Then(
@@ -280,11 +319,13 @@ def approval_program():
     """approval program for the contract"""
 
 # App Lifecycle
-    handle_closeout = close_out()
-    handle_app_creation = is_valid_creation_call() 
-    handle_deleteapp =  Int(0) 
-    handle_clear_state = Int(0) 
+    handle_creation = is_valid_creation_call()
+    handle_closeout = Int(0)
+    handle_deleteapp =  Int(0)
+    handle_clear_state = Int(0)
     handle_optin = Int(1) 
+    collect_rental_status = collect_rental()
+    check_out_status = check_out(Btoi(Txn.application_args[0]))
 
 # Setup Operation
     setup_app_operation = And(
@@ -296,9 +337,8 @@ def approval_program():
         is_valid_booking_call(
             Int(1),
             Int(0),
-            getAssetId(),
-            getTotal()),
-        booking(Int(0), getAssetId()))
+            getAssetId()),
+        booking(int(0), getAssetId()))
 
 # Refund operation
     refund_operation = And(
@@ -309,24 +349,26 @@ def approval_program():
     program = Cond(
         [ Global.group_size () == Int(1),
             Cond(
-                [ Txn.application_id() == Int(0), Return(handle_app_creation) ],
+                [ Txn.application_id() == Int(0), Return(handle_creation) ],
                 [ BytesEq(Txn.note(), TxnTags.ASSET_HANDIN), Return(refund_operation)],
-                [ BytesEq(Txn.note(), TxnTags.COLLECT_RENTAL), collect_rental],
-                [ BytesEq(Txn.note(), TxnTags.CHECKOUT), check_out],
+                [ BytesEq(Txn.note(), TxnTags.COLLECT_RENTAL), Return(collect_rental_status)],
+                [ BytesEq(Txn.note(), TxnTags.CHECKOUT), Return(check_out_status)],
                 [ Txn.on_completion() == OnComplete.DeleteApplication, Return(handle_deleteapp) ],
                 [ Txn.on_completion() == OnComplete.ClearState, Return(handle_clear_state) ],
                 [ Txn.on_completion() == OnComplete.OptIn, Return(handle_optin) ],
-                [ Txn.on_completion() == OnComplete.CloseOut, Return(handle_closeout) ])],
+                [ Txn.on_completion() == OnComplete.CloseOut, Return(handle_closeout) ]
+                )],
         [ Global.group_size() == Int(2),
             Cond(
                 [ BytesEq(Gtxn[1].note(), TxnTags.SETUP), Return(setup_app_operation) ],
-                [ BytesEq(Gtxn[1].note(), TxnTags.ALGO_PAYMENT), Return(booking_operation) ])],
+                [ BytesEq(Gtxn[1].note(), TxnTags.ALGO_PAYMENT), Return(booking_operation) ]
+                )],
         [ Global.group_size() >= Int(2), Reject() ]
-    )
+        )
     return compileTeal(program, Mode.Application, version=5)
 
 def clear_state_program():
-    program = Return(Int(1))
+    program = Return(Int(0))
     return compileTeal(program, Mode.Application, version=5)
 
 # Write to file
@@ -339,37 +381,3 @@ clearFile.write(clear_state_program())
 clearFile.close()
 
 
-# --- Global Getters ---
-@Subroutine(TealType.uint64)
-def getAssetId():
-    return App.globalGet(GlobalState.Variables.ASSET_ID)
-
-@Subroutine(TealType.uint64)
-def getRental():
-    return App.globalGet(GlobalState.Variables.RENTAL)
-
-@Subroutine(TealType.uint64)
-def getDeposit():
-    return App.globalGet(GlobalState.Variables.DEPOSIT)
-
-@Subroutine(TealType.uint64)
-def getTotal():
-    return App.globalGet(GlobalState.Variables.TOTAL)
-
-@Subroutine(TealType.uint64)
-def getCancelledStatus():
-    return App.globalGet(GlobalState.Variables.CANCELLED)
-
-@Subroutine(TealType.uint64)
-def getPaymentStatus():
-    return App.globalGet(GlobalState.Variables.PAID)
-
-# --- Local Getters ---
-
-@Subroutine(TealType.uint64)
-def getPaidAmount(account: TealType.bytes):
-    return App.localGet(account, LocalState.Variables.PAID_AMOUNT)
-
-@Subroutine(TealType.uint64)
-def getLastPaidTimestamp(account: TealType.bytes):
-    return App.localGet(account, LocalState.Variables.LAST_PAID_TIMESTAMP)
