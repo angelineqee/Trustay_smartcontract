@@ -162,7 +162,7 @@ int 0
 assert
 int 1
 gtxns NumAppArgs
-int 6
+int 5
 ==
 assert
 int 1
@@ -185,18 +185,18 @@ int 1
 itxn_field ConfigAssetTotal
 int 0
 itxn_field ConfigAssetDecimals
-gtxna 1 ApplicationArgs 3
+byte ""
 itxn_field ConfigAssetURL
 itxn_submit
 byte "assetID"
 itxn CreatedAssetID
 app_global_put
 byte "deposit"
-gtxna 1 ApplicationArgs 5
+gtxna 1 ApplicationArgs 4
 btoi
 app_global_put
 byte "rental"
-gtxna 1 ApplicationArgs 4
+gtxna 1 ApplicationArgs 3
 btoi
 app_global_put
 byte "total"
@@ -263,7 +263,7 @@ addr GCYOXCBLUWFJMRH4B6TGL2HO5RB6SW3ZTOREXCIIY7ERVJGYZ463QPG7QU
 ==
 assert
 global LatestTimestamp
-int 1697833291
+int 1697948303
 >=
 assert
 itxn_begin
@@ -313,7 +313,7 @@ itxn_submit
 b main_l29
 main_l31:
 global LatestTimestamp
-int 1697833291
+int 1697948303
 <=
 !
 byte "paid"
@@ -380,7 +380,7 @@ app_global_get
 assert
 int 1
 global LatestTimestamp
-int 1697833291
+int 1697948303
 <=
 bnz main_l37
 int 0
@@ -444,7 +444,7 @@ int 0
 ==
 assert
 txn GlobalNumUint
-int 3
+int 6
 ==
 assert
 txn LocalNumByteSlice
@@ -452,7 +452,7 @@ int 0
 ==
 assert
 txn LocalNumUint
-int 0
+int 2
 ==
 assert
 int 1

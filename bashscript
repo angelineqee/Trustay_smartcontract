@@ -6,7 +6,7 @@ service="F66DD432HVSH5MOU4RCD3WOLNK4VQO4GT4RBZ3KGZE7GBNQZE65HVUSLGA"
 
 metadata_hash="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 asset_name="Apartment"
-unit_name="The Robertson KL"
+unit_name="Suite"
 url="https://www.airbnb.com/rooms/676672101230669000?check_in=2023-10-18&check_out=2023-10-19&source_impression_id=p3_1697594568_8QjpZP9PPxn0GxaU&previous_page_section_name=1000&federated_search_id=9145957b-d172-441f-a51d-bcbd2852f999"
 rental=10
 deposit=3
@@ -15,14 +15,14 @@ deposit=3
 
 #create app
 function create_app {
-    goal app create --clear-prog clear.teal --approval-prog approval.teal --local-byteslices 2 --local-ints 0 --global-ints 3 --global-byteslices 0 --creator $app_creator'
+    goal app create --clear-prog clear.teal --approval-prog approval.teal --local-byteslices 2 --local-ints 0 --global-ints 6 --global-byteslices 0 --creator $app_creator'
 }
 
 function setup_app {
     #setup app and create asset
     goal app call -n "SETUP" --app-id "$app_id" --app-arg "str:$metadata_hash" \
-        --app-arg "str:$asset_name" --app-arg "str:$unit_name" --app-arg "int:$url" \
-        --app-arg "int:$rental" --app-arg "str:$deposit" --out setup_txn.txn --from $app_creator
+        --app-arg "str:$asset_name" --app-arg "str:$unit_name" \
+        --app-arg "str:$rental" --app-arg "str:$deposit" --out setup_txn.txn --from $app_creator
  
     goal clerk send --from="$app_creator" --to="$app_addr" --amount=400000 --out seedcontract.txn 
     cat seedcontract.txn setup_txn.txn > combined.txn

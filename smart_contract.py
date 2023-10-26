@@ -92,7 +92,7 @@ def inner_asset_creation() -> Expr:
             TxnField.config_asset_unit_name: call_parameters[2],
             TxnField.config_asset_total: Int(1),
             TxnField.config_asset_decimals: Int(0),
-            TxnField.config_asset_url: call_parameters[3],
+            TxnField.config_asset_url:Bytes(""),
         }),
         InnerTxnBuilder.Submit(),
         App.globalPut(GlobalState.Variables.ASSET_ID, InnerTxn.created_asset_id())
@@ -146,13 +146,13 @@ def is_acc_opted_in(account: TealType.bytes):
 
 def is_valid_creation_call():
     return Seq(
-	Assert(Txn.sender() == host_addr),
+	    Assert(Txn.sender() == host_addr),
         Assert(Txn.type_enum() == TxnType.ApplicationCall),
         Assert(Txn.on_completion() == OnComplete.NoOp),
         Assert(Txn.global_num_byte_slices() == Int(0)),
-        Assert(Txn.global_num_uints() == Int(3)),
+        Assert(Txn.global_num_uints() == Int(6)),
         Assert(Txn.local_num_byte_slices() == Int(0)),
-        Assert(Txn.local_num_uints() == Int(0)),
+        Assert(Txn.local_num_uints() == Int(2)),
         Int(1))
 
 def is_valid_setup_call(fund_txn_index: TealType.uint64, app_call_txn_index: TealType.uint64):
@@ -165,13 +165,13 @@ def is_valid_setup_call(fund_txn_index: TealType.uint64, app_call_txn_index: Tea
         Assert( Gtxn[app_call_txn_index].on_completion() == OnComplete.NoOp ),
         Assert( Gtxn[app_call_txn_index].application_id() != Int(0) ),
         # the correct amount of application_args are specified
-        Assert( Gtxn[app_call_txn_index].application_args.length() == Int(6) ),
+        Assert( Gtxn[app_call_txn_index].application_args.length() == Int(5) ),
         Int(1))
 
 def setup_app( ):
     """ perform application setup to initiate global state and create the managed ASA"""
-    rental = Gtxn[1].application_args[4]
-    deposit = Gtxn[1].application_args[5]
+    rental = Gtxn[1].application_args[3]
+    deposit = Gtxn[1].application_args[4]
     return Seq(
         inner_asset_creation(),
         # initiate Global State
